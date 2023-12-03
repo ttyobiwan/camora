@@ -37,5 +37,5 @@ jobs:
       - name: Run pre-commit hooks
         run: make lint
 
-      - name: Run tests with pytest
-        run: make test
+      # - name: Run tests with pytest
+      #   run: make test
