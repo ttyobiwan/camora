@@ -1,6 +1,6 @@
-class KazError(BaseException):
+class CamoraError(BaseException):
     """Base class for all Camora errors."""
 
 
-class DispatchError(KazError):
+class DispatchError(CamoraError):
     """Dispatch error."""

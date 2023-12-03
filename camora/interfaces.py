@@ -1,4 +1,4 @@
-from typing import AsyncGenerator, Protocol
+from typing import Protocol
 
 from camora.models import BaseTask, PayloadDict, TaskDict
 
@@ -13,21 +13,18 @@ class Broker(Protocol):
             Exception: If broker is not healthy.
         """
 
-    async def read(self) -> AsyncGenerator[list[TaskDict], None]:
+    async def read(self) -> list[TaskDict]:
         """Read tasks from broker."""
         ...
 
     async def publish(self, payload: PayloadDict) -> None:
         """Publish task to broker."""
-        ...
 
     async def handle_success(self, task: BaseTask) -> None:
         """Handle successful task execution."""
-        ...
 
     async def handle_giveup(self, task: BaseTask, error: Exception) -> None:
         """Handle task execution failure, after using all retries."""
-        ...
 
 
 class Logger(Protocol):
@@ -35,11 +32,9 @@ class Logger(Protocol):
 
     def info(self, mgs: str, *args, **kwargs) -> None:
         """Log info message."""
-        ...
 
     def error(self, mgs: str, *args, **kwargs) -> None:
         """Log error message."""
-        ...
 
 
 class SilentLogger:

@@ -1,14 +1,17 @@
 import asyncio
 import inspect
 from collections import defaultdict
-from typing import Any, Callable, TypeAlias
+from typing import Any, Callable, TypeAlias, TypeVar
 
 from camora.errors import DispatchError
 from camora.interfaces import Broker, Logger, SilentLogger
 from camora.models import BaseTask, MetaDict, PayloadDict, TaskDict
+from camora.utils import LifeWatcher
 
 Dependencies: TypeAlias = dict[str, dict[str, Any]]
 RetryDecorator: TypeAlias = Callable[[Callable], Callable]
+
+T = TypeVar("T", bound=type[BaseTask])
 
 
 class Camora:
@@ -42,6 +45,8 @@ class Camora:
             logger = SilentLogger()
         self.logger = logger
 
+        self.watcher = LifeWatcher(logger=logger)
+
     def build_dependencies_dict(self, deps: list[Callable]) -> dict[type, Callable]:
         """Build a dictionary of dependencies.
 
@@ -50,7 +55,8 @@ class Camora:
         """
         return {inspect.signature(dep).return_annotation: dep for dep in deps}
 
-    def register[T: type[BaseTask]](self, task_cls: T) -> T:
+    # TODO: def register[T: type[BaseTask]](self, task_cls: T) -> T:
+    def register(self, task_cls: T) -> T:
         """Register a task class.
 
         Apply retry policy if one is set.
@@ -58,14 +64,14 @@ class Camora:
         self.tasks[task_cls.__name__] = task_cls  # TODO: Support custom names
         if self.retry_policy is None:
             return task_cls
-        task_cls.execute = self.retry_policy(task_cls.execute)
+        task_cls.execute = self.retry_policy(task_cls.execute)  # type: ignore
         return task_cls
 
     async def dispatch(
         self,
         task: BaseTask | type[BaseTask] | str,
         **kwargs,
-    ):
+    ) -> None:
         """Dispatch a task.
 
         Args:
@@ -104,19 +110,26 @@ class Camora:
     async def start(self) -> None:
         """Start the app."""
         await self.broker.check_health()
+        # TODO: Check pending tasks
         self.logger.info("Starting to read")
-        while True:
+        while self.watcher.alive:
             try:
-                async for task_dicts in self.broker.read():
-                    self.logger.info("Received tasks", ids=[t["id"] for t in task_dicts])
-                    tasks = [self._construct_task(task_dict) for task_dict in task_dicts]
-                    deps = self._get_dependencies(tasks)
-                    await asyncio.gather(
-                        *(self._process_task(task, deps[task._id]) for task in tasks)
-                    )
+                task_dicts = await self.broker.read()
+                if not task_dicts:
+                    continue
+                self.logger.info("Received tasks", ids=[t["id"] for t in task_dicts])
+                await self._process_tasks(task_dicts)
             except Exception as err:
                 self.logger.error("Uncaught exception", err=err)
                 await asyncio.sleep(1)
+
+    async def _process_tasks(self, task_dicts: list[TaskDict]) -> None:
+        """Process a list of tasks."""
+        tasks = [self._construct_task(task_dict) for task_dict in task_dicts]
+        deps = self._get_dependencies(tasks)
+        await asyncio.gather(
+            *(self._process_task(task, deps[task._id]) for task in tasks)
+        )
 
     def _construct_task(self, task_dict: TaskDict) -> BaseTask:
         """Construct a task from a task dict."""
@@ -130,7 +143,11 @@ class Camora:
         return task
 
     def _get_dependencies(self, tasks: list[BaseTask]) -> Dependencies:
-        """Get dependencies for tasks."""
+        """Get dependencies for tasks.
+
+        Returns:
+            Dictionary with task id as key and dictionary of dependencies as value.
+        """
         deps: dict[type, Any] = {}
         deps_per_task: Dependencies = defaultdict(dict)
         for task in tasks:
