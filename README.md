@@ -159,7 +159,6 @@ Camora will read the types of all the `execute` dependencies, and will pass them
 
 - [ ] Tests
 - [ ] Docs
-- [ ] Pip stuff
+- [ ] Badges
 - [ ] Sync code support
 - [ ] Periodic tasks
-- [ ] Graceful shutdown
