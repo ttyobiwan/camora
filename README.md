@@ -1,6 +1,8 @@
 # Camora
 
-Camora is a lightweight task scheduler for Python.
+Camora is a lightweight task scheduler for Python. It uses Pydantic to validate the tasks' payload and is built with dependency injection in mind.
+
+The main idea behind Camora, was to have something simpler than Celery, that is easy to use, supports async code and allows for customization of all the building blocks.
 
 ## Usage
 

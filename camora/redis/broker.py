@@ -1,5 +1,4 @@
 import json
-from typing import AsyncGenerator
 
 import redis.asyncio as redis
 
@@ -37,7 +36,7 @@ class RedisBroker:
         client: redis.Redis | None = None,
         client_settings: dict | None = None,
         consumer_name: str = "camora",
-        block_time: int = 60,
+        block_time: int = 30,
     ) -> None:
         """Create a new Redis broker.
 
@@ -55,6 +54,9 @@ class RedisBroker:
         self.failure_stream = failure_stream
 
         if client is None:
+            # This will fail if client settings are not provided
+            # but user should be aware that client should either be
+            # passed or configured
             client = redis.StrictRedis(**client_settings or {})
         self.redis = client
 
@@ -64,23 +66,22 @@ class RedisBroker:
     async def check_health(self) -> None:
         """Check broker health."""
         await self.redis.ping()
-
-    async def read(self) -> AsyncGenerator[list[TaskDict], None]:
-        """Read tasks from broker."""
         await self._create_consumer_group(self.stream, self.consumer_group)
-        while True:
-            response = await self.redis.xreadgroup(
-                self.consumer_group,
-                self.consumer_name,
-                {self.stream: ">"},
-                block=self.block_time,
-            )
-            if not response:
-                continue
-            yield [
-                TaskDict(id=tid, payload=PayloadDict(**decode(payload)))
-                for tid, payload in response[0][1]
-            ]
+
+    async def read(self) -> list[TaskDict]:
+        """Read tasks from broker."""
+        response = await self.redis.xreadgroup(
+            self.consumer_group,
+            self.consumer_name,
+            {self.stream: ">"},
+            block=self.block_time,
+        )
+        if not response:
+            return []
+        return [
+            TaskDict(id=tid, payload=PayloadDict(**decode(payload)))  # type: ignore
+            for tid, payload in response[0][1]
+        ]
 
     async def publish(self, payload: PayloadDict) -> None:
         """Publish task to broker."""
