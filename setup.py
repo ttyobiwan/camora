@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from setuptools import find_packages, setup
+from setuptools import setup
 
 here = Path(__file__).parent
 
@@ -30,8 +30,6 @@ setup(
     python_requires=">=3.7.0",
     extras_require={"redis": read_requirements(redis_requirements_path)},
     install_requires=read_requirements(requirements_path),
-    packages=find_packages(where="camora"),
-    package_dir={"": "camora"},
     author="Piotr Tobiasz",
     author_email="piotr.tobiasz.dev@gmail.com",
 )
