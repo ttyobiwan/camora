@@ -1,5 +1,10 @@
 # Camora
 
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/charliermarsh/ruff/main/assets/badge/v0.json)](https://github.com/charliermarsh/ruff)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
+[![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
+![Continuous Integration](https://github.com/tobias-piotr/camora/workflows/CI/badge.svg?branch=main)
+
 Camora is a lightweight task scheduler for Python. It uses Pydantic to validate the tasks' payload and is built with dependency injection in mind.
 
 The main idea behind Camora, was to have something simpler than Celery, that is easy to use, supports async code and allows for customization of all the building blocks.
@@ -24,7 +29,7 @@ app = Camora(
 )
 ```
 
-The app requires some broken like Redis, but it can take anything that satisfies the `Broker` interface.
+The app requires some broker like Redis, but it can take anything that satisfies the `Broker` interface.
 
 After that, you can define your tasks:
 
