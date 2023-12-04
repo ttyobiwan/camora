@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from setuptools import setup
+from setuptools import find_packages, setup
 
 here = Path(__file__).parent
 
@@ -27,6 +27,8 @@ setup(
     long_description=long_description,
     license="MIT",
     version=os.getenv("PACKAGE_VERSION", "0.0.0"),
+    package_dir={"": "src"},
+    packages=find_packages(where="src"),
     python_requires=">=3.7.0",
     extras_require={"redis": read_requirements(redis_requirements_path)},
     install_requires=read_requirements(requirements_path),
