@@ -22,15 +22,12 @@ def read_requirements(path: Path) -> list[str]:
 setup(
     name="camora",
     description="Lightweight task scheduler",
-    python_requires=">=3.7.0",
-    setup_requires=["setuptools_scm"],
     long_description_content_type="text/markdown",
     long_description=long_description,
     license="MIT",
+    python_requires=">=3.7.0",
     extras_require={"redis": read_requirements(redis_requirements_path)},
     install_requires=read_requirements(requirements_path),
-    packages=find_packages(where="camora"),
-    package_dir={"": "camora"},
     author="Piotr Tobiasz",
     author_email="piotr.tobiasz.dev@gmail.com",
 )
