@@ -19,14 +19,13 @@ import redis.asyncio as redis
 from camora.app import Camora
 from camora.redis.broker import RedisBroker
 
-app = Camora(
-    broker=RedisBroker(
-        "test_stream",
-        "test_group",
-        "failure_stream",
-        client = redis.StrictRedis(host="localhost", port=6379),
-    )
+redis_broker=RedisBroker(
+    "test_stream",
+    "test_group",
+    "failure_stream",
+    client = redis.StrictRedis(host="localhost", port=6379),
 )
+app = Camora(broker=redis_broker)
 ```
 
 The app requires some broker like Redis, but it can take anything that satisfies the `Broker` interface.
