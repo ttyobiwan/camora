@@ -9,6 +9,8 @@ Camora is a lightweight task scheduler for Python. It uses Pydantic to validate 
 
 The main idea behind Camora, was to have something simpler than Celery, that is easy to use, supports async code and allows for customization of all the building blocks.
 
+***Warning***: this is still work in progress!
+
 ## Usage
 
 First, you need create an app instance:
@@ -161,8 +163,10 @@ Camora will read the types of all the `execute` dependencies, and will pass them
 
 ## Work in progress
 
+Here are some things that are still missing:
+
 - [ ] Tests
-- [ ] Docs
+- [ ] Proper docs
 - [ ] Badges
 - [ ] Sync code support
 - [ ] Periodic tasks
