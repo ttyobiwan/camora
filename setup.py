@@ -34,4 +34,9 @@ setup(
     install_requires=read_requirements(requirements_path),
     author="Piotr Tobiasz",
     author_email="piotr.tobiasz.dev@gmail.com",
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+    ],
 )
