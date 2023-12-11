@@ -3,6 +3,8 @@ import inspect
 from collections import defaultdict
 from typing import Any, Callable, TypeAlias, TypeVar
 
+import schedule
+
 from camora.errors import DispatchError
 from camora.interfaces import Broker, Logger, SilentLogger
 from camora.models import BaseTask, MetaDict, PayloadDict, TaskDict
@@ -12,48 +14,98 @@ Dependencies: TypeAlias = dict[str, dict[str, Any]]
 RetryDecorator: TypeAlias = Callable[[Callable], Callable]
 
 T = TypeVar("T", bound=type[BaseTask])
+U = TypeVar("U", bound=Callable)
 
 
-class Camora:
-    """Camora app."""
+def build_dependencies_dict(deps: list[Callable]) -> dict[type, Callable]:
+    """Build a dictionary of dependencies.
+
+    Returns:
+        Dictionary with dependency type as key and dependency function as value.
+    """
+    return {inspect.signature(dep).return_annotation: dep for dep in deps}
+
+
+class TaskScheduler:
+    """Tasks scheduler."""
+
+    def __init__(self, watcher: LifeWatcher, logger: Logger) -> None:
+        self.watcher = watcher
+        self.logger = logger
+
+    async def start(self) -> None:
+        """Start periodic tasks scheduler."""
+        while self.watcher.alive:
+            try:
+                schedule.run_pending()
+            except Exception as err:
+                self.logger.error("Uncaught exception", err=err)
+            finally:
+                await asyncio.sleep(1)
+
+    def schedule(self, when: schedule.Job) -> Callable:
+        """Schedule a periodic task.
+
+        Args:
+            when: A 'schedule' representation of when to run the task.
+        """
+
+        # TODO: OK, I must admit I got a little lazy at this point
+        async def safe_exec(func: Callable, is_async: bool = False) -> None:
+            try:
+                if is_async is True:
+                    await func()
+                else:
+                    func()
+            except Exception as err:
+                self.logger.error("Uncaught exception", err=err)
+
+        # TODO: New generics syntax
+        def wrapper(task: U) -> U:
+            # TODO: Handle dependencies
+            when.do(
+                lambda: asyncio.create_task(
+                    safe_exec(
+                        task,
+                        asyncio.iscoroutinefunction(task),
+                    )
+                )
+            )
+            return task
+
+        return wrapper
+
+
+class TaskProcessor:
+    """Tasks processor."""
 
     def __init__(
         self,
         broker: Broker,
-        dependencies: list[Callable] | None = None,
-        retry_policy: RetryDecorator | None = None,
-        logger: Logger | None = None,
+        dependencies: dict[type, Callable],
+        retry_policy: RetryDecorator | None,
+        logger: Logger,
+        watcher: LifeWatcher,
     ) -> None:
-        """Create a new Camora app.
-
-        Args:
-            broker: Broker instance.
-            dependencies: List of functions returning dependencies.
-            retry_policy: Retry policy decorator.
-            logger: Logger instance.
-        """
         self.tasks: dict[str, type[BaseTask]] = {}
         self.broker = broker
-
-        if dependencies is None:
-            dependencies = []
-        self.dependencies = self.build_dependencies_dict(dependencies)
-
+        self.dependencies = dependencies
         self.retry_policy = retry_policy
-
-        if logger is None:
-            logger = SilentLogger()
         self.logger = logger
+        self.watcher = watcher
 
-        self.watcher = LifeWatcher(logger=logger)
-
-    def build_dependencies_dict(self, deps: list[Callable]) -> dict[type, Callable]:
-        """Build a dictionary of dependencies.
-
-        Returns:
-            Dictionary with dependency type as key and dependency function as value.
-        """
-        return {inspect.signature(dep).return_annotation: dep for dep in deps}
+    async def start(self) -> None:
+        """Start tasks processor."""
+        while self.watcher.alive:
+            try:
+                task_dicts = await self.broker.read()
+                if not task_dicts:
+                    continue
+                self.logger.info("Received tasks", ids=[t["id"] for t in task_dicts])
+                await self._process_tasks(task_dicts)
+            except Exception as err:
+                self.logger.error("Uncaught exception", err=err)
+                await asyncio.sleep(1)
 
     # TODO: def register[T: type[BaseTask]](self, task_cls: T) -> T:
     def register(self, task_cls: T) -> T:
@@ -107,22 +159,6 @@ class Camora:
 
         await self.broker.publish(payload)
 
-    async def start(self) -> None:
-        """Start the app."""
-        await self.broker.check_health()
-        # TODO: Check pending tasks
-        self.logger.info("Starting to read")
-        while self.watcher.alive:
-            try:
-                task_dicts = await self.broker.read()
-                if not task_dicts:
-                    continue
-                self.logger.info("Received tasks", ids=[t["id"] for t in task_dicts])
-                await self._process_tasks(task_dicts)
-            except Exception as err:
-                self.logger.error("Uncaught exception", err=err)
-                await asyncio.sleep(1)
-
     async def _process_tasks(self, task_dicts: list[TaskDict]) -> None:
         """Process a list of tasks."""
         tasks = [self._construct_task(task_dict) for task_dict in task_dicts]
@@ -171,3 +207,79 @@ class Camora:
         else:
             self.logger.info("Task executed successfully", task=task)
             await self.broker.handle_success(task)
+
+
+class Camora:
+    """Camora app."""
+
+    def __init__(
+        self,
+        broker: Broker,
+        dependencies: list[Callable] | None = None,
+        retry_policy: RetryDecorator | None = None,
+        logger: Logger | None = None,
+    ) -> None:
+        """Create a new Camora app.
+
+        Args:
+            broker: Broker instance.
+            dependencies: List of functions returning dependencies.
+            retry_policy: Retry policy decorator.
+            logger: Logger instance.
+        """
+        self.broker = broker
+        if dependencies is None:
+            dependencies = []
+        self.dependencies = build_dependencies_dict(dependencies)
+
+        if logger is None:
+            logger = SilentLogger()
+        self.logger = logger
+
+        self.watcher = LifeWatcher(logger=self.logger)
+
+        self.scheduler = TaskScheduler(self.watcher, self.logger)
+        self.processor = TaskProcessor(
+            self.broker,
+            self.dependencies,
+            retry_policy,
+            self.logger,
+            self.watcher,
+        )
+
+    async def start(self) -> None:
+        """Start the app."""
+        self.logger.info("Starting Camora app")
+        # TODO: Check pending tasks (from the broker)
+        await self.broker.check_health()
+        asyncio.create_task(self.scheduler.start())
+        await self.processor.start()
+
+    def schedule(self, when: schedule.Job) -> Callable:
+        """Schedule a periodic task.
+
+        Args:
+            when: A 'schedule' representation of when to run the task.
+        """
+        return self.scheduler.schedule(when)
+
+    # TODO: def register[T: type[BaseTask]](self, task_cls: T) -> T:
+    def register(self, task_cls: T) -> T:
+        """Register a task class.
+
+        Apply retry policy if one is set.
+        """
+        return self.processor.register(task_cls)
+
+    async def dispatch(
+        self,
+        task: BaseTask | type[BaseTask] | str,
+        **kwargs,
+    ) -> None:
+        """Dispatch a task.
+
+        Args:
+            task: Task instance, class or name.
+            kwargs: Task arguments.
+        """
+        return await self.processor.dispatch(task, **kwargs)

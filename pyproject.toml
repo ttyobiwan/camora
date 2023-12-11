@@ -12,3 +12,7 @@ ignore = [
     "D407",
     "B008",
 ]
+
+[tool.pyright]
+venvPath = "."
+venv = "venv"
