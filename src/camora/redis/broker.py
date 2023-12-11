@@ -17,12 +17,13 @@ def encode(payload: dict) -> dict:
 
 def decode(payload: dict) -> dict:
     """Decode payload values from JSON if needed."""
+    p = {}
     for k, v in payload.items():
         try:
-            payload[k] = json.loads(v)
+            p[k.decode()] = json.loads(v)
         except json.JSONDecodeError:
             pass
-    return payload
+    return p
 
 
 class RedisBroker:

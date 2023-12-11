@@ -3,7 +3,7 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/charliermarsh/ruff/main/assets/badge/v0.json)](https://github.com/charliermarsh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 [![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
-![Continuous Integration](https://github.com/tobias-piotr/camora/workflows/CI/badge.svg?branch=main)
+![CI](https://github.com/tobias-piotr/camora/actions/workflows/ci.yaml/badge.svg?branch=main)
 
 Camora is a lightweight task scheduler for Python. It uses Pydantic to validate the tasks' payload and is built with dependency injection in mind.
 
@@ -161,12 +161,27 @@ class SendEmail(BaseTask):
 
 Camora will read the types of all the `execute` dependencies, and will pass them to the task when executing it. On top of that, if multiple tasks are being processed, and they require the same dependency, Camora will only call the dependency factory once, and will pass the same instance to all tasks.
 
+### Periodic tasks
+
+Camora allows you to define periodic tasks, that will be executed on a schedule. To do that, you need to use the `@app.schedule` decorator:
+
+```python
+@app.schedule(schedule.every(5).seconds)
+def sync_task():
+    print("hello every 5 seconds")
+
+
+@app.schedule(schedule.every(1).day.at("12:00"))
+async def async_task():
+    print("hello every day at 12:00")
+```
+
+Tasks can be either sync or async, and they will be executed on the worker side.
+
 ## Work in progress
 
 Here are some things that are still missing:
 
 - [ ] Tests
 - [ ] Proper docs
-- [ ] Badges
 - [ ] Sync code support
-- [ ] Periodic tasks
